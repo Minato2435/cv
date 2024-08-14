@@ -1,0 +1,558 @@
+#1.basic image processing
+import cv2
+from google.colab.patches import cv2_imshow
+image=cv2.imread('car.jfif')
+cv2_imshow(image)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
+gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+cv2_imshow(gray_image)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
+resized_image = cv2.resize(image,(200,200))
+cv2_imshow(resized_image)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
+blurred_image = cv2.GaussianBlur(image, (15, 15), 0)
+cv2_imshow(blurred_image)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
+edges = cv2.Canny(gray_image, 100, 200)
+cv2_imshow(edges)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
+cv2.rectangle(image, (50,50), (300,300), (255, 0, 0), 2)
+cv2.line(image, (60,60), (300,300), (0, 0, 255), 2)
+cv2_imshow(image)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
+
+#2 3D IMAGE TO 2Diamge
+import numpy as np
+from PIL import Image
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
+image_path = '/content/taj_mahal.jpeg'
+image = Image.open(image_path)
+image_array = np.array(image)
+
+x = np.linspace(0, image_array.shape[1], image_array.shape[1])
+y = np.linspace(0, image_array.shape[0], image_array.shape[0])
+x, y = np.meshgrid(x, y)
+
+z = np.mean(image_array, axis=2)
+norm_image_array = image_array / 255.0
+
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+ax.plot_surface(x, y, z, facecolors=norm_image_array, rstride=1, cstride=1)
+
+ax.set_xlabel('X axis')
+ax.set_ylabel('Y axis')
+ax.set_zlabel('Intensity')
+
+plt.show()
+
+#3 basic motion detection and tracking
+import cv2
+from google.colab.patches import cv2_imshow
+cap = cv2.VideoCapture('2109463-uhd_3840_2160_30fps.mp4')
+if not cap.isOpened():
+    print("Error: Could not open video.")
+    exit()
+_, frame1 = cap.read()
+prev_frame_gray = cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY)
+while True:
+    _, frame2 = cap.read()
+    if not _:
+        break
+    curr_frame_gray = cv2.cvtColor(frame2, cv2.COLOR_BGR2GRAY)
+    frame_diff = cv2.absdiff(prev_frame_gray, curr_frame_gray)
+    _, thresh = cv2.threshold(frame_diff, 30, 255, cv2.THRESH_BINARY)
+
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    for contour in contours:
+        if cv2.contourArea(contour) < 1000:
+            continue
+        x, y, w, h = cv2.boundingRect(contour)
+        cv2.rectangle(frame2, (x, y), (x + w, y + h), (0, 255, 0), 2)
+    cv2_imshow(frame2)
+    prev_frame_gray = curr_frame_gray.copy()
+    if cv2.waitKey(30) & 0xFF == ord('q'):
+        break
+cap.release()
+cv2.destroyAllWindows()
+
+#4 image captioning
+from transformers import BlipProcessor, BlipForConditionalGeneration
+from PIL import Image
+import matplotlib.pyplot as plt
+image_path = '/content/taj_mahal.jpeg'
+image = Image.open(image_path).convert("RGB")
+processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
+model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base")
+inputs = processor(images=image, return_tensors="pt")
+caption = processor.decode(model.generate(**inputs)[0], skip_special_tokens=True)
+plt.imshow(image)
+plt.title(caption)
+plt.axis('off')
+plt.show()
+
+#5 build your own vechivcle detection model
+import cv2
+import time
+import numpy as np
+from google.colab import files
+from google.colab.patches import cv2_imshow
+
+uploaded = files.upload()
+video_path = list(uploaded.keys())[0]
+
+car_classifier = cv2.CascadeClassifier('/content/2109463-uhd_3840_2160_30fps (1).mp4')
+
+cap = cv2.VideoCapture(video_path)
+
+while cap.isOpened():
+    time.sleep(0.05)
+
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    cars = car_classifier.detectMultiScale(gray, 1.4, 2)
+
+    for (x, y, w, h) in cars:
+        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 255), 2)
+
+    cv2_imshow(frame)
+
+    if cv2.waitKey(1) == 13:
+        break
+
+cap.release()
+cv2.destroyAllWindows()
+
+#6 image segmentation using edge detection
+import numpy as np
+from google.colab.patches import cv2_imshow
+image = cv2.imread('/content/taj_mahal.jpeg')
+gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+edges=cv2.Canny(gray,150,255)
+ret,thresh=cv2.threshold(gray,150,255,cv2.THRESH_BINARY)
+contour,_=cv2.findContours(thresh,cv2.RETR_TREE,cv2.CHAIN_APPROX_NONE)
+contour_image = image.copy()
+cv2.drawContours(contour_image,contour,-1,(0,255,0),2)
+cv2_imshow(contour_image)
+cv2_imshow(thresh)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
+
+#7region based segmentation
+import numpy as np
+import matplotlib.pyplot as plt
+from skimage.feature import canny
+from skimage import data, morphology
+from skimage.color import rgb2gray, label2rgb
+import scipy.ndimage as nd
+from skimage.filters import sobel
+from skimage.segmentation import watershed
+from skimage.feature import peak_local_max
+plt.rcParams["figure.figsize"] = (12, 8)
+astronaut = data.astronaut()
+astronaut_gray = rgb2gray(astronaut)
+edges = canny(astronaut_gray)
+plt.imshow(astronaut_gray, cmap='gray')
+plt.title('Original Grayscale Image')
+plt.show()
+contours = nd.binary_fill_holes(edges)
+
+contours_label, _ = nd.label(contours)
+contours_overlay = label2rgb(contours_label, image=astronaut_gray, bg_label=0)
+plt.figure(figsize=(12, 8))
+plt.imshow(astronaut_gray, cmap='gray')
+plt.contour(contours, [0.8], linewidths=1.8, colors='w')
+plt.title('Original Image with Contours Overlay')
+plt.show()
+
+#8 social distancing appilication
+import cv2
+import numpy as np
+from google.colab.patches import cv2_imshow
+import os
+
+def calculate_distance(bbox1, bbox2):
+    center1 = (bbox1[0] + bbox1[2] // 2, bbox1[1] + bbox1[3] // 2)
+    center2 = (bbox2[0] + bbox2[2] // 2, bbox2[1] + bbox2[3] // 2)
+    distance = np.sqrt((center1[0] - center2[0])**2 + (center1[1] - center2[1])**2)
+    return distance
+
+def draw_bounding_box(image, bbox, color):
+    cv2.rectangle(image, (bbox[0], bbox[1]), (bbox[0] + bbox[2], bbox[1] + bbox[3]), color, 2)
+
+image_path = '/content/dist.jpg'
+
+if not os.path.exists(image_path):
+    print(f"Error: Image file '{image_path}' not found.")
+else:
+    image = cv2.imread(image_path)
+
+    if image is None:
+        print(f"Error: Unable to load image '{image_path}'")
+    else:
+        bbox1 = (100, 50, 200, 150)
+        bbox2 = (300, 200, 180, 120)
+
+        draw_bounding_box(image, bbox1, (0, 255, 0))
+        draw_bounding_box(image, bbox2, (0, 255, 0))
+
+        distance = calculate_distance(bbox1, bbox2)
+
+        if distance < 200:
+          color = (0, 255, 0)
+          print("Social Distancing")
+        else:
+            color = (0, 0, 255)
+            print("Maintaining Social Distancing")
+
+        bbox_combined = (min(bbox1[0], bbox2[0]), min(bbox1[1], bbox2[1]),
+                         max(bbox1[0] + bbox1[2], bbox2[0] + bbox2[2]) - min(bbox1[0], bbox2[0]),
+                         max(bbox1[1] + bbox1[3], bbox2[1] + bbox2[3]) - min(bbox1[1], bbox2[1]))
+        draw_bounding_box(image, bbox_combined, color)
+
+        cv2.putText(image, f'Distance: {distance:.2f} pixels', (50, 30), cv2.FONT_HERSHEY_SIMPLEX, 1,
+                    (255, 255, 255), 2)
+
+        cv2_imshow(image)
+
+#9 shape detection using hough transorm
+import cv2
+import numpy as np
+from google.colab.patches import cv2_imshow
+image = cv2.imread('/content/coins.jfif')
+gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+blurred = cv2.GaussianBlur(gray, (9, 9), 2)
+edges = cv2.Canny(blurred, threshold1=50, threshold2=150)
+min_radius = 20
+max_radius = 100
+circles = cv2.HoughCircles(edges, cv2.HOUGH_GRADIENT, dp=1.2, minDist=50,
+                           param1=100, param2=30, minRadius=min_radius, maxRadius=max_radius)
+if circles is not None:
+    circles = np.round(circles[0, :]).astype("int")
+    for (x, y, r) in circles:
+        cv2.circle(image, (x, y), r, (0, 255, 0), 2)
+        cv2.circle(image, (x, y), 2, (0, 0, 255), 3)
+
+
+cv2_imshow(image)
+
+#10 face detection for family photo
+from google.colab.patches import cv2_imshow
+import cv2
+
+image = cv2.imread('/content/famms.jpg')
+gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+classifier = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+faces = classifier.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+
+for (x, y, w, h) in faces:
+    cv2.rectangle(image, (x, y), (x + w, y + h), (0, 0, 255), 2)
+
+cv2_imshow(image)
+
+#11 perform sence text documentation
+!pip install pytesseract
+!sudo apt install tesseract-ocr
+
+import cv2
+import pytesseract
+
+image_path = "/content/11_image.png"
+image = cv2.imread(image_path)
+gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+text = pytesseract.image_to_string(gray)
+
+print("Extracted Text:")
+print(text)
+
+#12 road lane detection
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+
+img = cv2.imread("/content/road.jpg")
+img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+gray_img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+gray_img = cv2.dilate(gray_img, kernel=np.ones((5, 5), np.uint8))
+canny = cv2.Canny(gray_img, 100, 200)
+
+roi_vertices = [(270, 670), (600, 400), (1127, 712)]
+
+def roi(image, vertices):
+    mask = np.zeros_like(image)
+    mask_color = 255
+    cv2.fillPoly(mask, np.array([vertices], np.int32), mask_color)
+    masked_img = cv2.bitwise_and(image, mask)
+    return masked_img
+
+roi_image = roi(canny, roi_vertices)
+lines = cv2.HoughLinesP(roi_image, 1, np.pi/180, 100, minLineLength=100, maxLineGap=50)
+
+def draw_lines(image, hough_lines):
+    if hough_lines is not None:
+        for line in hough_lines:
+            x1, y1, x2, y2 = line[0]
+            cv2.line(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+    else:
+        print("No lines detected.")
+
+draw_lines(img, lines)
+
+plt.imshow(img)
+plt.xticks([])
+plt.yticks([])
+plt.show()
+
+
+#13 emotion recognition using facial exp
+!pip install deepface
+
+import cv2
+import matplotlib.pyplot as plt
+from deepface import DeepFace
+
+def process_image(img_path):
+    img = cv2.imread(img_path)
+    if img is None:
+        print(f"Error: Unable to read image from {img_path}")
+    else:
+        plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        plt.title(f"Image: {img_path}")
+        plt.axis('off')
+        plt.show()
+
+        try:
+            result = DeepFace.analyze(img, actions=['emotion'])
+            print(f"Emotion analysis result for {img_path}:")
+            print(result)
+        except Exception as e:
+            print(f"Error analyzing image {img_path}: {e}")
+
+img_paths = ['/content/face_expression.jpg']
+for img_path in img_paths:
+    process_image(img_path)
+
+#15 count vechicles in image or video
+import cv2
+import numpy as np
+from time import sleep
+
+largura_min = 80
+altura_min = 80  
+offset = 6  
+pos_linha = 550  
+delay = 60  
+detec = []
+carros = 0
+
+def pega_centro(x, y, w, h):
+    x1 = int(w / 2)
+    y1 = int(h / 2)
+    cx = x + x1
+    cy = y + y1
+    return cx, cy
+
+cap = cv2.VideoCapture('/content/2109463-uhd_3840_2160_30fps.mp4')
+subtracao = cv2.bgsegm.createBackgroundSubtractorMOG()
+
+while True:
+    ret, frame1 = cap.read()
+    if not ret:
+        break
+
+    tempo = float(1 / delay)
+    sleep(tempo)
+
+    grey = cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY)
+    blur = cv2.GaussianBlur(grey, (3, 3), 5)
+    img_sub = subtracao.apply(blur)
+    dilat = cv2.dilate(img_sub, np.ones((5, 5)))
+
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    dilatada = cv2.morphologyEx(dilat, cv2.MORPH_CLOSE, kernel)
+    dilatada = cv2.morphologyEx(dilatada, cv2.MORPH_CLOSE, kernel)
+
+    contorno, _ = cv2.findContours(dilatada, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    cv2.line(frame1, (25, pos_linha), (1200, pos_linha), (255, 127, 0), 3)
+
+    for c in contorno:
+        (x, y, w, h) = cv2.boundingRect(c)
+        validar_contorno = (w >= largura_min) and (h >= altura_min)
+        if not validar_contorno:
+            continue
+
+        cv2.rectangle(frame1, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        centro = pega_centro(x, y, w, h)
+        detec.append(centro)
+        cv2.circle(frame1, centro, 4, (0, 0, 255), -1)
+
+    for (x, y) in detec[:]:  # Iterate over a copy of the list
+        if y < (pos_linha + offset) and y > (pos_linha - offset):
+            carros += 1
+            cv2.line(frame1, (25, pos_linha), (1200, pos_linha), (0, 127, 255), 3)
+            detec.remove((x, y))
+
+    print("Carros detectados: " + str(carros))
+    cv2.putText(frame1, "VEHICLE COUNT : " + str(carros), (450, 70), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 5)
+    cv2.imshow("Video Original", frame1)
+    cv2.imshow("Detectar", dilatada)
+
+    if cv2.waitKey(1) == 27:  # Exit on 'ESC' key
+        break
+
+cv2.destroyAllWindows()
+cap.release()
+
+#16 qr code
+!pip install pyqrcode pypng IPython
+import pyqrcode
+import png
+from IPython.display import Image
+s = "Mr Programmer github Link - https://github.com/dashboard"
+url = pyqrcode.create(s)
+filename = 'myqr.png'
+url.png(filename, scale=6)
+Image(filename=filename)
+
+
+#14 build people counting solution 
+!pip install "openvino>=2024.0.0" "ultralytics==8.2.18" "torch>=2.1" "ipywidgets==7.7.1"
+
+from pathlib import Path
+from ultralytics import YOLO
+import cv2
+import time
+import collections
+import numpy as np
+from IPython import display
+import torch
+import openvino as ov
+import ipywidgets as widgets
+from ultralytics import solutions
+
+# Define model directory and name
+models_dir = Path("./models")
+models_dir.mkdir(exist_ok=True)
+DET_MODEL_NAME = "yolov8n"
+
+# Load YOLO model
+det_model = YOLO(models_dir / f"{DET_MODEL_NAME}.pt")
+label_map = det_model.model.names
+res = det_model()
+
+# Export model to OpenVINO format if not already done
+det_model_path = models_dir / f"{DET_MODEL_NAME}_openvino_model/{DET_MODEL_NAME}.xml"
+if not det_model_path.exists():
+    det_model.export(format="openvino", dynamic=True, half=True)
+
+# Function to run inference
+def run_inference(source, device):
+    core = ov.Core()
+    det_ov_model = core.read_model(det_model_path)
+    ov_config = {}
+    if "GPU" in device.value or ("AUTO" in device.value and "GPU" in core.available_devices):
+        ov_config = {"GPU_DISABLE_WINOGRAD_CONVOLUTION": "YES"}
+    compiled_model = core.compile_model(det_ov_model, device.value, ov_config)
+    
+    def infer(*args):
+        result = compiled_model(args)
+        return torch.from_numpy(result[0])
+    
+    det_model.predictor.inference = infer
+    det_model.predictor.model.pt = False
+    
+    try:
+        cap = cv2.VideoCapture(source)
+        assert cap.isOpened(), "Error reading video file"
+        
+        line_points = [(0, 300), (1080, 300)]
+        classes_to_count = [0]
+        counter = solutions.ObjectCounter(
+            view_img=False,
+            reg_pts=line_points,
+            classes_names=det_model.names,
+            draw_tracks=True,
+            line_thickness=2,
+            view_in_counts=False,
+            view_out_counts=False
+        )
+        
+        processing_times = collections.deque(maxlen=200)
+        
+        while cap.isOpened():
+            success, frame = cap.read()
+            if not success:
+                print("Video frame is empty or video processing has been successfully completed.")
+                break
+            
+            start_time = time.time()
+            tracks = det_model.track(frame, persist=True, show=False, classes=classes_to_count, verbose=False)
+            frame = counter.start_counting(frame, tracks)
+            
+            stop_time = time.time()
+            processing_times.append(stop_time - start_time)
+            
+            _, f_width = frame.shape[:2]
+            processing_time = np.mean(processing_times) * 1000
+            fps = 1000 / processing_time
+            cv2.putText(
+                img=frame,
+                text=f"Inference time: {processing_time:.1f}ms ({fps:.1f} FPS)",
+                org=(20, 40),
+                fontFace=cv2.FONT_HERSHEY_COMPLEX,
+                fontScale=f_width / 1000,
+                color=(0, 0, 255),
+                thickness=2,
+                lineType=cv2.LINE_AA
+            )
+            
+            counts = counter.out_counts
+            text = f"Count: {counts}"
+            fontFace = cv2.FONT_HERSHEY_COMPLEX
+            fontScale = 0.75
+            thickness = 2
+            (text_width, text_height), _ = cv2.getTextSize(text, fontFace, fontScale, thickness)
+            top_right_corner = (frame.shape[1] - text_width - 20, 40)
+            cv2.putText(
+                img=frame,
+                text=text,
+                org=top_right_corner,
+                fontFace=fontFace,
+                fontScale=fontScale,
+                color=(0, 0, 255),
+                thickness=thickness,
+                lineType=cv2.LINE_AA
+            )
+            
+            _, encoded_img = cv2.imencode(ext=".jpg", img=frame, params=[cv2.IMWRITE_JPEG_QUALITY, 100])
+            i = display.Image(data=encoded_img)
+            display.clear_output(wait=True)
+            display.display(i)
+    except KeyboardInterrupt:
+        print("Interrupted")
+    finally:
+        cap.release()
+        cv2.destroyAllWindows()
+
+# Set video source and device
+VIDEO_SOURCE = "https://github.com/intel-iot-devkit/sample-videos/raw/master/people-detection.mp4"
+core = ov.Core()
+device = widgets.Dropdown(options=core.available_devices + ["AUTO"], value="AUTO", description="Device:", disabled=False)
+device
+
+# Run inference
+run_inference(source=VIDEO_SOURCE, device=device)
+
